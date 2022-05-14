@@ -23,13 +23,16 @@ class User(AbstractUser):
 
 class Address(models.Model):
     country = CountryField()
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='address')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='address', blank=True)
     city = models.CharField(max_length=100)
     district = models.CharField(max_length=100)
     street = models.CharField(max_length=100)
     postal_code = models.CharField(max_length=20, null=True, blank=True)
     building_number = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(1)])
     apartment_number = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(1)])
+
+    def __str__(self):
+        return self.user.username
 
 
 class BearerTokenAuthentication(TokenAuthentication):
