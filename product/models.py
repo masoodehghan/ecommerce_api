@@ -31,7 +31,7 @@ class Product(models.Model):
     category = TreeForeignKey(Category, related_name='product_category', on_delete=models.CASCADE)
     slug = models.SlugField(max_length=250, null=True, blank=True, unique=True)
     quantity = models.IntegerField(default=1)
-    price = models.DecimalField(decimal_places=2, max_digits=10, null=True, blank=True)
+    price = models.DecimalField(decimal_places=2, max_digits=10)
     description = models.TextField(null=True, blank=True)
     views = models.IntegerField(default=0)
     created = models.DateTimeField(auto_now_add=True)
