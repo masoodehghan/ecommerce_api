@@ -1,6 +1,7 @@
 from django.db import models
 from mptt.models import MPTTModel, TreeForeignKey
 from django.conf import settings
+from django.urls import reverse
 
 
 def product_image_path(instance, filename):
@@ -22,7 +23,9 @@ class Category(MPTTModel):
 
 
 class Product(models.Model):
-    seller = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='user_product', on_delete=models.CASCADE)
+    seller = models.ForeignKey(
+        settings.AUTH_USER_MODEL, related_name='user_product', on_delete=models.CASCADE, blank=True
+    )
     name = models.CharField(max_length=250)
     image = models.ImageField(default='default.jpg', blank=True, upload_to=product_image_path)
     category = TreeForeignKey(Category, related_name='product_category', on_delete=models.CASCADE)
@@ -36,3 +39,11 @@ class Product(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class ProductView(models.Model):
+    product = models.ForeignKey(Product, blank=True, on_delete=models.CASCADE)
+    ip = models.CharField(max_length=200, blank=True)
+
+    def __str__(self):
+        return self.product.name

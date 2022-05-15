@@ -7,28 +7,30 @@ import random
 
 @receiver(pre_save, sender=Product)
 def create_slug_product(sender, instance=None, **kwargs):
-    instance.slug = create_unique_slug(instance)
+    if not instance.slug:
+        instance.slug = create_unique_slug(instance)
+    elif instance.name != sender.objects.get(id=instance.id).name:
+        instance.slug = create_unique_slug(instance)
 
 
 @receiver(pre_save, sender=Category)
 def create_slug_category(sender, instance=None, **kwargs):
-    instance.slug = create_unique_slug(instance)
+    if not instance.slug:
+        instance.slug = create_unique_slug(instance)
+    elif instance.name != sender.objects.get(id=instance.id).name:
+        instance.slug = create_unique_slug(instance)
 
 
-def create_unique_slug(instance, new_slug=None):
-    if new_slug is not None:
-        slug = new_slug
-    else:
-        slug = slugify(instance.name)
+def create_unique_slug(instance):
 
-    instance_class = instance.__class__
-    query_set = instance_class.objects.filter(slug=slug)
+    slug = slugify(instance.name)
+    sender = instance.__class__
 
+    query_set = sender.objects.filter(slug=slug)
     if query_set.exists():
         random_list = random.sample(range(97, 123), 4)
         random_str = ''.join(map(chr, random_list))
 
         new_slug = f"{slug}-{random_str}"
-        return create_unique_slug(instance, new_slug)
-
+        slug = new_slug
     return slug
