@@ -34,6 +34,7 @@ class Product(models.Model):
     price = models.DecimalField(decimal_places=2, max_digits=10)
     description = models.TextField(null=True, blank=True)
     views = models.IntegerField(default=0)
+    discount_price = models.DecimalField(max_digits=8, decimal_places=2,  default=0, blank=True)
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 

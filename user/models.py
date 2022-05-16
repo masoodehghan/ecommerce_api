@@ -30,6 +30,7 @@ class Address(models.Model):
     postal_code = models.CharField(max_length=20, null=True, blank=True)
     building_number = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(1)])
     apartment_number = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(1)])
+    primary = models.BooleanField(default=False)
 
     def __str__(self):
         return self.user.username

@@ -38,8 +38,6 @@ class CartItemListCreate(generics.ListCreateAPIView):
         if quantity > product.quantity:
             raise NotAcceptable('you order quantity is more than product quantity available')
         serializer.save(cart=cart, product=product, quantity=quantity)
-        cart.total += 1
-        cart.save()
 
 
 class CartItemDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -52,6 +50,11 @@ class CartItemDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def perform_update(self, serializer):
         product = get_object_or_404(Product, pk=self.request.data.get('product'))
+        cart = get_object_or_404(Cart, user=self.request.user)
+        current_item = CartItem.objects.filter(cart=cart, product=product)
+
+        if current_item.count() > 0:
+            raise NotAcceptable('you already have this product in cart')
 
         try:
             quantity = int(self.request.data['quantity'])
@@ -65,7 +68,6 @@ class CartItemDetailView(generics.RetrieveUpdateDestroyAPIView):
         serializer.save()
 
     def perform_destroy(self, instance):
-        instance.cart.total -= 1
         instance.delete()
 
 
