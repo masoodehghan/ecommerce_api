@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     'mptt',
     'django_filters',
     'cart',
+    'order',
 
 
 ]

@@ -19,3 +19,13 @@ class CartItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = CartItem
         fields = ['id', 'product', 'quantity', 'item_price', 'url']
+
+
+class CartItemMiniSerializer(serializers.ModelSerializer):
+    item_price = serializers.DecimalField(source='get_final_price', decimal_places=2, max_digits=10, required=False,
+                                          read_only=True)
+
+    class Meta:
+        model = CartItem
+        fields = ['id', 'product', 'quantity', 'item_price']
+        read_only_fields = ['product', 'id']
