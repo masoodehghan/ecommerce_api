@@ -11,4 +11,6 @@ urlpatterns = [
     path('logout', views.LogoutView.as_view(), name='logout'),
     path('address/create', views.AddressCreateView.as_view(), name='address-create'),
     path('address/<int:pk>/', views.AddressRetrieveView.as_view(), name='address-detail'),
+    path('review', views.ReviewCreate.as_view(), name='review_create'),
+    path('review/<int:pk>/', views.ReviewUpdateDestroy.as_view(), name='review_detail')
 ]

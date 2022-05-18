@@ -1,11 +1,13 @@
 from rest_framework import generics, permissions
 from rest_framework.response import Response
 from .models import Address
-from .serializers import RegisterSerializer, AddressSerializer, UserSerializer
+from .serializers import RegisterSerializer, AddressSerializer, UserSerializer, ReviewSerializer
 from django.contrib.auth import get_user_model
 from .permissions import IsOwner
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
+from product.models import Product
+from rest_framework.exceptions import NotAcceptable
 
 User = get_user_model()
 
@@ -61,3 +63,21 @@ class AddressRetrieveView(generics.RetrieveUpdateDestroyAPIView):
         obj = get_object_or_404(queryset, id=self.kwargs.get('pk'))
         self.check_object_permissions(self.request, obj)
         return obj
+
+
+class ReviewCreate(generics.CreateAPIView):
+    serializer_class = ReviewSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        product = get_object_or_404(Product, pk=self.request.data['product'])
+
+        if product.seller == self.request.user:
+            raise NotAcceptable('you cant review your own product')
+
+        return serializer.save(user=self.request.user)
+
+
+class ReviewUpdateDestroy(generics.UpdateAPIView, generics.DestroyAPIView):
+    serializer_class = ReviewSerializer
+    permission_classes = [IsOwner]

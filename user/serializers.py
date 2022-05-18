@@ -1,9 +1,10 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import Address
+from .models import Address, Review
 import django.contrib.auth.password_validation as validator
 from django.core.exceptions import ValidationError
 from django_countries.fields import CountryField
+
 User = get_user_model()
 
 
@@ -53,3 +54,16 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         exclude = ['password', 'date_joined', 'last_login', 'is_active']
 
+
+class ReviewSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Review
+        fields = '__all__'
+        read_only_fields = ['user']
+
+
+class ReviewMiniSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Review
+        exclude = ['product']

@@ -2,6 +2,7 @@ from django.db import models
 from mptt.models import MPTTModel, TreeForeignKey
 from django.conf import settings
 from django.urls import reverse
+from django.core.validators import MaxValueValidator, MinValueValidator
 
 
 def product_image_path(instance, filename):

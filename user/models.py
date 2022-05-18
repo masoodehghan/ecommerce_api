@@ -3,6 +3,7 @@ from django.contrib.auth.models import AbstractUser
 from django_countries.fields import CountryField
 from django.core.validators import MinValueValidator
 from rest_framework.authentication import TokenAuthentication
+from product.models import Product
 
 
 class User(AbstractUser):
@@ -34,6 +35,26 @@ class Address(models.Model):
 
     def __str__(self):
         return self.user.username
+
+
+class Review(models.Model):
+    REVIEW_CHOICES = (('u', 'Up Value'),
+                      ('d', 'Down Value'),
+                      ('o', 'Not Sure')
+                      )
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, blank=True, related_name='review_user')
+    pros = models.CharField(max_length=100, default='')
+    cons = models.CharField(max_length=100, default='')
+    content = models.CharField(max_length=100, default='')
+    value = models.CharField(max_length=1, choices=REVIEW_CHOICES)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='review_product')
+
+    class Meta:
+        unique_together = ['product', 'user']
+
+    def get_reviewers(self):
+        pass
 
 
 class BearerTokenAuthentication(TokenAuthentication):
