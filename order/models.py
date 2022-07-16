@@ -6,7 +6,7 @@ from datetime import timedelta, date
 from string import digits
 from random import choice
 from django.core.validators import MinValueValidator
-
+from ecommerce.utils import TimeStampModel
 
 User = get_user_model()
 
@@ -15,7 +15,7 @@ def generate_order_number(size=10):
     return ''.join(choice(digits) for _ in range(size))
 
 
-class Order(models.Model):
+class Order(TimeStampModel):
     PENDING_STATE = 'p'
     SHIPPING_STATE = 's'
     COMPLETED_STATE = 'c'
@@ -34,8 +34,10 @@ class Order(models.Model):
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE, blank=True)
     delivery_date = models.DateField(default=date.today() + timedelta(days=4),
                                      validators=[MinValueValidator(date.today() + timedelta(days=3))])
-    order_number = models.CharField(max_length=10, default=generate_order_number, unique=True)
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
+
+    order_number = models.CharField(
+        max_length=10,
+        default=generate_order_number,
+        unique=True)
     total_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True,
                                       validators=[MinValueValidator(0)])

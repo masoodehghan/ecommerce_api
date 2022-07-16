@@ -14,8 +14,19 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'is_staff', 'last_name',
-                  'gender', 'about', 'password', 'password2']
+        fields = [
+            'id',
+            'username',
+            'email',
+            'first_name',
+            'is_staff',
+            'last_name',
+            'gender', 'about',
+            'password',
+            'password2'
+        ]
+
+        read_only_fields = ['is_staff']
 
     def validate(self, data):
         if data['password'] != data['password2']:

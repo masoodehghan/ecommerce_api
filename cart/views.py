@@ -69,5 +69,3 @@ class CartItemDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def perform_destroy(self, instance):
         instance.delete()
-
-

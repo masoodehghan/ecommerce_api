@@ -1,75 +1,58 @@
-from .serializers import ProductSerializer, CategorySerializer, ProductMiniSerializer
+from .serializers import (
+    ProductSerializer, CategorySerializer, ProductMiniSerializer
+)
 from .models import Product, Category, ProductView
 from rest_framework import permissions, generics, filters
 from .permissions import IsSeller
-from rest_framework.response import Response
-from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
-from rest_framework.exceptions import NotAcceptable
 
 
-class ProductList(generics.ListAPIView):
+class ProductList(generics.ListCreateAPIView):
     serializer_class = ProductSerializer
-    permission_classes = [permissions.AllowAny]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
 
-    queryset = Product.objects.all()
-    search_fields = ['name', 'seller__username', 'category__name']
-
+    search_fields = ['name', 'seller', 'category__name']
     ordering_fields = ['views', 'price', 'created']
 
+    def get_queryset(self):
+        queryset = Product.objects.select_related('category', 'seller')
 
-class ProductCreate(generics.CreateAPIView):
-    serializer_class = ProductSerializer
-    permission_classes = [permissions.IsAuthenticated]
+        fields = ['name', 'price', 'category__name', 'created',
+                  'discount_price', 'seller__username', 'views',
+                  'description', 'quantity', 'slug', 'image'
+                  ]
 
-    def perform_create(self, serializer):
-        data = self.request.data
-        if data.get('discount_price') > data.get('price'):
-            raise NotAcceptable('discount price cant be higher than real price')
-
-        category = get_object_or_404(Category, id=self.request.data.get('category'))
-        serializer.save(seller=self.request.user, category=category)
+        return queryset.only(*fields)
 
 
-class ProductUpdateDestroyView(generics.UpdateAPIView, generics.DestroyAPIView):
-    serializer_class = ProductSerializer
+class ProductDetail(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsSeller]
     queryset = Product.objects.all()
     lookup_field = 'slug'
 
-    def perform_update(self, serializer):
-        discount_price = self.request.data.get('discount_price')
-        if discount_price:
-            if self.get_object().price < float(discount_price):
-                raise NotAcceptable('discount price cant be higher than real price')
-
-        price = self.request.data.get('price')
-
-        if price and discount_price:
-            if discount_price > float(price):
-                raise NotAcceptable('discount price cant be higher than real price')
-        return serializer.save()
-
-
-class ProductDetail(APIView):
-    permission_classes = [permissions.AllowAny]
+    def get_serializer_class(self):
+        if self.request.method == 'GET':
+            return ProductMiniSerializer
+        else:
+            return ProductSerializer
 
     def get(self, request, *args, **kwargs):
-        product = get_object_or_404(Product, slug=kwargs.get('slug'))
-        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        self._add_views_to_product()
+        return self.retrieve(request, *args, **kwargs)
+
+    def _add_views_to_product(self):
+        product = self.get_object()
+
+        x_forwarded_for = self.request.META.get('HTTP_X_FORWARDED_FOR')
         if x_forwarded_for:
             ip = x_forwarded_for.split(',')[0]
         else:
-            ip = request.META.get('REMOTE_ADDR')
+            ip = self.request.META.get('REMOTE_ADDR')
 
         if not ProductView.objects.filter(ip=ip, product=product).exists():
             ProductView.objects.create(product=product, ip=ip)
             product.views += 1
             product.save()
-
-        serializer = ProductMiniSerializer(product)
-        return Response(serializer.data, status=200)
 
 
 class CategoryListCreate(generics.ListCreateAPIView):
@@ -92,7 +75,7 @@ class ProductListByCategory(generics.ListAPIView):
     ordering_fields = ['price']
 
     def get_queryset(self):
-        category = get_object_or_404(Category, slug=self.kwargs.get('slug'))
+        category = get_object_or_404(Category, slug=self.kwargs['slug'])
         return Product.objects.filter(category=category)
 
 
@@ -101,3 +84,8 @@ class CategoryDetail(generics.UpdateAPIView, generics.DestroyAPIView):
     permission_classes = [permissions.IsAdminUser]
     lookup_field = 'slug'
     queryset = Category.objects.all()
+
+    def put(self, request, *args, **kwargs):
+
+        print(Category.objects.get_children(self.get_object()))
+        return self.update(request, *args, **kwargs)
