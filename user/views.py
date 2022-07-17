@@ -1,7 +1,14 @@
 from rest_framework import generics, permissions
 from rest_framework.response import Response
 from .models import Address
-from .serializers import RegisterSerializer, AddressSerializer, UserSerializer, ReviewSerializer
+
+from .serializers import (
+    RegisterSerializer,
+    AddressSerializer,
+    UserSerializer,
+    ReviewSerializer
+)
+
 from django.contrib.auth import get_user_model
 from .permissions import IsOwner
 from django.shortcuts import get_object_or_404
@@ -27,11 +34,15 @@ class UserListView(generics.ListAPIView):
 class ProfileView(generics.RetrieveAPIView, generics.UpdateAPIView):
     serializer_class = UserSerializer
     permission_classes = [IsOwner]
-    queryset = User.objects.all()
+    queryset = User.objects.prefetch_related('address').all()
+
+    lookup_field = None
 
     def get_object(self):
         queryset = self.get_queryset()
-        obj = get_object_or_404(queryset, id=self.request.user.id)
+
+        obj = queryset.get(id=self.request.user.id)
+
         self.check_object_permissions(self.request, obj)
         return obj
 
@@ -57,12 +68,6 @@ class AddressRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = AddressSerializer
     permission_classes = [IsOwner]
     queryset = Address.objects.all()
-
-    def get_object(self):
-        queryset = self.get_queryset()
-        obj = get_object_or_404(queryset, id=self.kwargs.get('pk'))
-        self.check_object_permissions(self.request, obj)
-        return obj
 
 
 class ReviewCreate(generics.CreateAPIView):

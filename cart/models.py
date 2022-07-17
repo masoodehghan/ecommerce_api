@@ -6,6 +6,7 @@ from product.models import Product
 from django.urls import reverse
 from ecommerce.utils import TimeStampModel
 from rest_framework.exceptions import NotAcceptable
+from django.core.validators import MinValueValidator
 
 User = get_user_model()
 
@@ -39,8 +40,12 @@ class CartItem(TimeStampModel):
     cart = models.ForeignKey(
         Cart, on_delete=models.CASCADE, blank=True, related_name='cart_item'
     )
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='product_item')
-    quantity = models.IntegerField(default=1)
+
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, related_name='product_item'
+    )
+
+    quantity = models.IntegerField(default=1, validators=[MinValueValidator(1)])
 
     def get_item_price(self):
         product = self.product

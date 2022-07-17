@@ -9,8 +9,10 @@ User = get_user_model()
 
 
 class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(max_length=100, required=True, write_only=True)
-    password2 = serializers.CharField(max_length=100, required=True, write_only=True)
+    password = serializers.CharField(
+        max_length=100, required=True, write_only=True)
+    password2 = serializers.CharField(
+        max_length=100, required=True, write_only=True)
 
     class Meta:
         model = User
@@ -52,18 +54,24 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 class AddressSerializer(serializers.ModelSerializer):
     country = CountryField()
+    url = serializers.URLField(source='get_absolute_url', read_only=True)
 
     class Meta:
         model = Address
         fields = '__all__'
-        extra_kwargs = {'user': {'required': False}}
+        read_only_fields = ['user']
 
 
 class UserSerializer(serializers.ModelSerializer):
+    address = AddressSerializer(many=True, read_only=True)
 
     class Meta:
         model = User
-        exclude = ['password', 'date_joined', 'last_login', 'is_active']
+
+        fields = ['first_name', 'last_name', 'username',
+                  'email', 'gender', 'about', 'address']
+
+        read_only_fields = ['username', 'email']
 
 
 class ReviewSerializer(serializers.ModelSerializer):

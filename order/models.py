@@ -16,28 +16,46 @@ def generate_order_number(size=10):
 
 
 class Order(TimeStampModel):
-    PENDING_STATE = 'p'
-    SHIPPING_STATE = 's'
-    COMPLETED_STATE = 'c'
 
-    STATUS_CHOICES = ((PENDING_STATE, 'pending'),
-                      (SHIPPING_STATE, 'shipping'),
-                      (COMPLETED_STATE, 'completed')
-                      )
+    class StatusChoices(models.TextChoices):
 
-    buyer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='orders', blank=True)
+        PENDING = 'p'
+        SHIPPING = 's'
+        COMPLETED = 'c'
+
+    buyer = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='orders',
+        blank=True)
     address = models.ForeignKey(
         Address, on_delete=models.CASCADE, related_name='order', blank=True
     )
     is_paid = models.BooleanField(default=False)
-    status = models.CharField(max_length=1, choices=STATUS_CHOICES, default=PENDING_STATE)
+
+    status = models.CharField(
+        max_length=1,
+        choices=StatusChoices.choices,
+        default=StatusChoices.PENDING)
+
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE, blank=True)
-    delivery_date = models.DateField(default=date.today() + timedelta(days=4),
-                                     validators=[MinValueValidator(date.today() + timedelta(days=3))])
+
+    delivery_date = models.DateField(
+        default=date.today() +
+        timedelta(
+            days=4),
+        validators=[
+            MinValueValidator(
+                date.today() +
+                timedelta(
+                    days=3))])
 
     order_number = models.CharField(
         max_length=10,
         default=generate_order_number,
         unique=True)
-    total_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True,
-                                      validators=[MinValueValidator(0)])
+
+    total_price = models.DecimalField(
+        max_digits=10, decimal_places=2,
+        blank=True,
+        validators=[MinValueValidator(1)])

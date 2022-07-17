@@ -24,6 +24,9 @@ class ProductList(generics.ListCreateAPIView):
 
         return queryset.only(*fields)
 
+    def perform_create(self, serializer):
+        serializer.save(seller=self.request.user)
+
 
 class ProductDetail(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsSeller]
@@ -59,6 +62,11 @@ class CategoryListCreate(generics.ListCreateAPIView):
     serializer_class = CategorySerializer
     queryset = Category.objects.all()
 
+    def get_serializer(self, *args, **kwargs):
+
+        kwargs['fields'] = {'id', 'slug', 'name'}
+        return super().get_serializer(*args, **kwargs)
+
     def get_permissions(self):
         if self.request.method == 'GET':
             permission_classes = [permissions.AllowAny]
@@ -84,8 +92,3 @@ class CategoryDetail(generics.UpdateAPIView, generics.DestroyAPIView):
     permission_classes = [permissions.IsAdminUser]
     lookup_field = 'slug'
     queryset = Category.objects.all()
-
-    def put(self, request, *args, **kwargs):
-
-        print(Category.objects.get_children(self.get_object()))
-        return self.update(request, *args, **kwargs)

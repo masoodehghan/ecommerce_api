@@ -38,19 +38,33 @@ class CategoryParentSerializer(serializers.ModelSerializer):
 
 class CategorySerializer(serializers.ModelSerializer):
 
+    def __init__(self, *args, **kwargs):
+
+        fields = kwargs.pop('fields', {})
+        assert isinstance(fields, set)
+
+        super().__init__(*args, **kwargs)
+
+        if fields:
+            allowed = set(fields)
+            exists = set(self.fields)
+
+            for field_name in exists - allowed:
+                self.fields.pop(field_name)
+
     parent_to_root = serializers.SerializerMethodField(read_only=True)
 
-    childrens = serializers.SerializerMethodField(read_only=True)
+    children = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Category
 
         fields = ['id', 'slug', 'name', 'parent',
-                  'childrens', 'parent_to_root']
+                  'children', 'parent_to_root']
 
         read_only_fields = ['slug']
 
-    def get_childrens(self, obj):
+    def get_children(self, obj):
         max_depth = self.context.get('max_depth', -1) - 1
 
         if max_depth == 0:
@@ -87,10 +101,11 @@ class ProductSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
 
-        if data['price'] < data['discount_price']:
+        if data.get('discount_price'):
+            if data.get('price') < data.get('discount_price'):
 
-            raise serializers.ValidationError(
-                'Discount cant be more than Price.')
+                raise serializers.ValidationError(
+                    'Discount cant be more than Price.')
 
         return super().validate(data)
 

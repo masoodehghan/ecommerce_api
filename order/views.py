@@ -3,7 +3,7 @@ from rest_framework import generics, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from .models import Order
-from cart.models import Cart
+from cart.models import Cart, CartItem
 from user.models import Address
 from cart.serializers import CartItemMiniSerializer
 from user.serializers import AddressSerializer
@@ -27,8 +27,8 @@ class CheckoutView(APIView):
         delivery_fee = 20.0
 
         total_price = cart.get_paying_price() + delivery_fee
-        cart_items = cart.cart_item.all()
-        print(cart_items)
+        cart_items = CartItem.objects.select_related(
+            'product').filter(cart=cart)
         data = dict()
         data['address'] = AddressSerializer(address, many=False).data
         data['paying_price'] = total_price
