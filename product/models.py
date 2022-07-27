@@ -1,5 +1,4 @@
 from django.db import models
-from mptt.models import MPTTModel, TreeForeignKey
 from django.conf import settings
 from django.core.validators import MinValueValidator
 from ecommerce.utils import TimeStampModel
@@ -82,6 +81,9 @@ class Product(TimeStampModel):
     discount_price = models.DecimalField(
         max_digits=8, decimal_places=2, default=0, blank=True,
         validators=[MinValueValidator(0)])
+
+    class Meta:
+        ordering = ['-id']
 
     def __str__(self):
         return self.name

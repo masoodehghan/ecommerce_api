@@ -4,13 +4,13 @@ from user.serializers import ReviewMiniSerializer
 
 
 class CategoryChildSerializer(serializers.ModelSerializer):
-    childrens = serializers.SerializerMethodField()
+    children = serializers.SerializerMethodField()
 
     class Meta:
         model = Category
-        fields = ['id', 'name', 'childrens']
+        fields = ['id', 'name', 'children']
 
-    def get_childrens(self, obj):
+    def get_children(self, obj):
         max_depth = self.context.get('max_depth', -1) - 1
 
         if max_depth == 0:
@@ -41,7 +41,6 @@ class CategorySerializer(serializers.ModelSerializer):
     def __init__(self, *args, **kwargs):
 
         fields = kwargs.pop('fields', {})
-        assert isinstance(fields, set)
 
         super().__init__(*args, **kwargs)
 

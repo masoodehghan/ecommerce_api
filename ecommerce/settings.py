@@ -105,7 +105,6 @@ AUTH_PASSWORD_VALIDATORS = [
 REST_FRAMEWORK = {
 
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.SessionAuthentication',
         'user.models.BearerTokenAuthentication',
     ],
 
@@ -118,6 +117,11 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10
 }
+
+if DEBUG:
+    REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"].append(
+        "rest_framework.authentication.SessionAuthentication"
+    )
 
 AUTH_USER_MODEL = 'user.User'
 
@@ -149,3 +153,51 @@ INTERNAL_IPS = [
 ]
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+LOGGING_ROOT = os.path.join(STATIC_ROOT, 'logging')
+
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler'
+        },
+
+        'info_file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': LOGGING_ROOT + "/info.log",
+        },
+
+        'debug_file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': LOGGING_ROOT + "/debug.log",
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'WARNING',
+    },
+
+    'loggers': {
+        'info': {
+            'handlers': ['info_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+
+    },
+}
+
+EMAIL_HOST = '0.0.0.0'
+EMAIL_PORT = 1025
+EMAIL_USER = ''
+EMAIL_PASSWORD = ''
+EMAIL_USE_TLS = False
+EMAIL_FROM = 'ecom@test.com'

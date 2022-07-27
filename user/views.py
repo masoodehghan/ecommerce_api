@@ -1,4 +1,4 @@
-from rest_framework import generics, permissions
+from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from .models import Address
 
@@ -6,7 +6,9 @@ from .serializers import (
     RegisterSerializer,
     AddressSerializer,
     UserSerializer,
-    ReviewSerializer
+    ReviewSerializer,
+    AuthRequestSerializer,
+    VerifyAuthSerializer
 )
 
 from django.contrib.auth import get_user_model
@@ -86,3 +88,29 @@ class ReviewCreate(generics.CreateAPIView):
 class ReviewUpdateDestroy(generics.UpdateAPIView, generics.DestroyAPIView):
     serializer_class = ReviewSerializer
     permission_classes = [IsOwner]
+
+
+class AuthRequestView(generics.CreateAPIView):
+    serializer_class = AuthRequestSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+
+        serializer.is_valid(raise_exception=True)
+        instance = self.perform_create(serializer)
+
+        response = Response(instance, status.HTTP_201_CREATED)
+
+        response.set_cookie('request_id',
+                            serializer.data['request_id'],
+                            600,
+                            httponly=True,
+                            )
+
+        return response
+
+
+class AuthRequestVerifyView(generics.CreateAPIView):
+    serializer_class = VerifyAuthSerializer
+    permission_classes = [permissions.AllowAny]

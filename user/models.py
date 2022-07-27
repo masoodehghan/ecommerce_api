@@ -1,3 +1,8 @@
+from datetime import timedelta
+from django.utils import timezone
+from random import choice
+from string import digits
+import uuid
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.urls import reverse
@@ -24,6 +29,37 @@ class User(AbstractUser):
     # TODO: add online function
 
 
+def generate_code():
+    code = ''.join(choice(digits) for _ in range(5))
+    return code
+
+
+class AuthRequest(models.Model):
+    class RequestMethod(models.TextChoices):
+        EMAIL = 'email'
+        PHONE = 'phone'
+
+    request_id = models.UUIDField(
+        default=uuid.uuid4, primary_key=True, db_index=True, editable=False
+    )
+
+    request_method = models.CharField(
+        max_length=7, choices=RequestMethod.choices,
+        default=RequestMethod.PHONE
+    )
+
+    pass_code = models.CharField(max_length=5, default=generate_code)
+
+    expire_time = models.DateTimeField(
+        default=timezone.now() + timedelta(minutes=2)
+    )
+
+    receiver = models.CharField(max_length=64)
+
+    def __str__(self) -> str:
+        return self.receiver
+
+
 class Address(models.Model):
     country = CountryField()
     user = models.ForeignKey(
@@ -48,7 +84,6 @@ class Address(models.Model):
 
     def get_absolute_url(self):
         return reverse("address-detail", kwargs={"pk": self.pk})
-
 
 
 class Review(TimeStampModel):

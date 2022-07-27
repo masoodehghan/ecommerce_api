@@ -5,6 +5,9 @@ from .models import Product, Category, ProductView
 from rest_framework import permissions, generics, filters
 from .permissions import IsSeller
 from django.shortcuts import get_object_or_404
+import logging
+
+logger = logging.getLogger('info')
 
 
 class ProductList(generics.ListCreateAPIView):
@@ -12,11 +15,12 @@ class ProductList(generics.ListCreateAPIView):
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
 
     search_fields = ['name', 'seller', 'category__name']
+
     ordering_fields = ['views', 'price', 'created']
 
     def get_queryset(self):
-        queryset = Product.objects.select_related('category', 'seller')
 
+        queryset = Product.objects.select_related('category', 'seller')
         fields = ['name', 'price', 'category__name', 'created',
                   'discount_price', 'seller__username', 'views',
                   'description', 'quantity', 'slug', 'image'
@@ -64,12 +68,13 @@ class CategoryListCreate(generics.ListCreateAPIView):
 
     def get_serializer(self, *args, **kwargs):
 
-        kwargs['fields'] = {'id', 'slug', 'name'}
+        kwargs['fields'] = {'id', 'slug', 'name', 'parent'}
         return super().get_serializer(*args, **kwargs)
 
     def get_permissions(self):
         if self.request.method == 'GET':
             permission_classes = [permissions.AllowAny]
+
         else:
             permission_classes = [permissions.IsAdminUser]
 
@@ -80,7 +85,7 @@ class ProductListByCategory(generics.ListAPIView):
     serializer_class = ProductSerializer
     permission_classes = [permissions.AllowAny]
     filter_backends = [filters.OrderingFilter]
-    ordering_fields = ['price']
+    ordering_fields = ['price', 'views']
 
     def get_queryset(self):
         category = get_object_or_404(Category, slug=self.kwargs['slug'])
