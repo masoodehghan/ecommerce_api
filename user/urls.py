@@ -4,12 +4,12 @@ from . import views
 
 
 urlpatterns = [
-    path('login', obtain_auth_token, name='login'),
-    path('register', views.UserCreateView.as_view(), name='register'),
-    path('userlist', views.UserListView.as_view(), name='user_list'),
-    path('profile', views.ProfileView.as_view(), name='profile'),
+    path('token/', obtain_auth_token, name='login'),
+    # path('register/', views.UserCreateView.as_view(), name='register'),
+    path('userlist/', views.UserListView.as_view(), name='user_list'),
+    path('profile/', views.ProfileView.as_view(), name='profile'),
 
-    path('logout', views.LogoutView.as_view(), name='logout'),
+    path('logout/', views.LogoutView.as_view(), name='logout'),
 
     path('address/create',
          views.AddressCreateView.as_view(),
@@ -25,6 +25,8 @@ urlpatterns = [
          views.ReviewUpdateDestroy.as_view(),
          name='review_detail'),
 
-    path('otp/', views.AuthRequestView.as_view()),
-    path('otp/verify/', views.AuthRequestVerifyView.as_view(), name='ver')
+    path('login/', views.AuthRequestView.as_view()),
+    path('login/verify/', views.AuthRequestVerifyView.as_view()),
+    path('resend-code/', views.ResendCodeView.as_view())
+
 ]

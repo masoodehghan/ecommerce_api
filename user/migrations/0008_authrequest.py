@@ -18,7 +18,7 @@ class Migration(migrations.Migration):
             fields=[
                 ('request_id', models.UUIDField(db_index=True, default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
                 ('request_method', models.CharField(choices=[('email', 'Email'), ('phone', 'Phone')], default='phone', max_length=7)),
-                ('pass_code', models.CharField(default=user.models.generate_code, max_length=5)),
+                ('pass_code', models.CharField(default='', max_length=5)),
                 ('expire_time', models.DateTimeField(default=datetime.datetime(2022, 7, 26, 20, 4, 50, 731012))),
                 ('receiver', models.CharField(max_length=64)),
             ],
