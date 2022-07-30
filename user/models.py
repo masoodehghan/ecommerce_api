@@ -26,18 +26,16 @@ class User(AbstractUser):
     def __str__(self):
         return self.username
 
-    # TODO: add online function
-
 
 def generate_code():
-    code = ''.join(choice(digits) for _ in range(5))
+    code = str(choice(range(10000, 99999)))
     return code
 
 
 class AuthRequest(models.Model):
     class RequestMethod(models.TextChoices):
-        EMAIL = 'email'
-        PHONE = 'phone'
+        PASSWORD = 'pass'
+        SMS = 'sms'
 
     request_id = models.UUIDField(
         default=uuid.uuid4, primary_key=True, db_index=True, editable=False
@@ -45,19 +43,30 @@ class AuthRequest(models.Model):
 
     request_method = models.CharField(
         max_length=7, choices=RequestMethod.choices,
-        default=RequestMethod.PHONE
     )
 
-    pass_code = models.CharField(max_length=5, default=generate_code)
+    pass_code = models.CharField(max_length=5, blank=True)
 
     expire_time = models.DateTimeField(
         default=timezone.now() + timedelta(minutes=2)
     )
 
+    created = models.DateTimeField(default=timezone.now)
+    modified = models.DateTimeField(blank=True)
+
     receiver = models.CharField(max_length=64)
 
-    def __str__(self) -> str:
+    def __str__(self):
         return self.receiver
+
+    def save(self, *args, **kwargs):
+
+        self.modified = timezone.now()
+
+        if self.pk:
+            self.expire_time = self.modified + timedelta(minutes=2)
+
+        return super().save(*args, **kwargs)
 
 
 class Address(models.Model):

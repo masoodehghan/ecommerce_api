@@ -1,4 +1,3 @@
-from datetime import datetime
 import re
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
@@ -9,6 +8,7 @@ from django_countries.fields import CountryField
 from django.utils import timezone
 from rest_framework.authtoken.models import Token
 from .util import send_email_to_user
+from django.contrib.auth import authenticate
 import logging
 
 logger = logging.getLogger('info')
@@ -102,65 +102,63 @@ class AuthRequestSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AuthRequest
-        fields = ['request_id', 'receiver', 'request_method', 'pass_code']
-        read_only_fields = ['request_id', 'pass_code']
+        fields = ['request_id', 'receiver', 'request_method']
+        read_only_fields = ['request_id']
+
+    def validate_receiver(self, value):
+
+        if not re.findall(r'^09\d{9}$', value):
+            raise serializers.ValidationError('enter a valid phone number')
+
+        return value
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
-        self._send_code(instance.receiver, ret.pop('pass_code'))
-
+        ret.pop('receiver')
         return ret
-
-    def validate(self, data):
-
-        if data['request_method'] == 'email':
-            email_regex = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
-
-            if re.fullmatch(email_regex, data['receiver']):
-                return data
-            else:
-                raise ValidationError('email is not valid.')
-
-        else:
-            pass  # TODO: add phone number validation
-
-    @staticmethod
-    def _send_code(receiver_email, pass_code):
-
-        # print('pass_code: ', pass_code)
-        send_email_to_user(receiver_email, pass_code)
 
 
 class VerifyAuthSerializer(serializers.ModelSerializer):
-    user_code = serializers.CharField(
-        max_length=5, required=True, write_only=True)
+    user_key = serializers.CharField(
+        max_length=32, required=False, write_only=True)
+
+    request_id = serializers.UUIDField(
+        help_text='override from cookie', required=False, read_only=False
+    )
 
     class Meta:
         model = AuthRequest
-        fields = ['request_id', 'user_code', 'pass_code']
-
-        extra_kwargs = {'request_id': {'read_only': False, 'required': False}}
+        fields = ['request_id', 'user_key', 'pass_code']
 
         read_only_fields = ['pass_code']
 
     def validate(self, attrs):
-        try:
-            attrs['request_id'] = self.context['request'].COOKIES['request_id']
 
-        except KeyError:
+        req_id = self.context['request'].COOKIES.get('_req_id_')
+
+        if req_id is None:
             raise ValidationError('request_id expired')
 
-        user_code = attrs.pop('user_code')
+        attrs['request_id'] = req_id
 
+        user_key = attrs.pop('user_key')
         self.instance = self._get_auth_request(attrs)
 
-        self.__validate_code(user_code, self.instance.pass_code)
+        if not self.auth_is_valid(self.instance, user_key):
+            raise serializers.ValidationError('invalid credential.')
 
         return attrs
 
-    @staticmethod
-    def _get_auth_request(data):
+    def auth_is_valid(self, auth_request: AuthRequest, user_key):
+        if auth_request.request_method == 'pass':
 
+            return self.__validate_password(auth_request.receiver, user_key)
+
+        else:
+            return self.__validate_code(user_key, auth_request.pass_code)
+
+    @staticmethod
+    def _get_auth_request(data: dict):
         auth_request = AuthRequest.objects.filter(**data).first()
 
         if auth_request is None:
@@ -169,36 +167,26 @@ class VerifyAuthSerializer(serializers.ModelSerializer):
         return auth_request
 
     def __validate_code(self, user_code, pass_code):
-        logger.info(self.instance.expire_time)
 
         if timezone.now() > self.instance.expire_time:
             raise serializers.ValidationError('your token is expired')
 
-        elif user_code != pass_code:
-            raise serializers.ValidationError('your token is incorrect')
+        return bool(user_code == pass_code)
 
     @staticmethod
-    def _delete_auth_request(id):
-        AuthRequest.objects.filter(request_id=id).delete()
+    def __validate_password(username, user_key):
+        errors = dict()
+        user_is_exist = bool(authenticate(username=username, password=user_key))
+        logger.info(user_is_exist)
 
-    def create(self, validated_data): pass
+        if not user_is_exist:
+            try:
+                validator.validate_password(password=user_key)
 
-    def to_representation(self, instance):
+            except ValidationError as e:
+                errors['password'] = list(e.messages)
 
-        if self.instance.request_method == 'email':
+            if errors:
+                raise serializers.ValidationError(errors)
 
-            user_email = instance.receiver
-
-            user, created = User.objects.get_or_create(
-                username=user_email.split('@')[0], email=user_email
-            )
-
-            logger.info(user)
-            token = Token.objects.get(user=user)
-
-        self._delete_auth_request(instance.request_id)
-
-        return {
-            'created': created,
-            'token': token.key
-        }
+        return user_is_exist
