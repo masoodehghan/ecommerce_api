@@ -6,14 +6,10 @@ import django.contrib.auth.password_validation as validator
 from django.core.exceptions import ValidationError
 from django_countries.fields import CountryField
 from django.utils import timezone
-from rest_framework.authtoken.models import Token
-from .util import send_email_to_user
 from django.contrib.auth import authenticate
 import logging
 
 logger = logging.getLogger('info')
-
-
 User = get_user_model()
 
 
@@ -99,11 +95,12 @@ class ReviewMiniSerializer(serializers.ModelSerializer):
 
 
 class AuthRequestSerializer(serializers.ModelSerializer):
+    login_with_code = serializers.BooleanField(default=False, write_only=True)
 
     class Meta:
         model = AuthRequest
-        fields = ['request_id', 'receiver', 'request_method']
-        read_only_fields = ['request_id']
+        fields = ['request_id', 'receiver', 'auth_status', 'login_with_code']
+        read_only_fields = ['request_id', 'auth_status']
 
     def validate_receiver(self, value):
 
@@ -111,6 +108,10 @@ class AuthRequestSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('enter a valid phone number')
 
         return value
+
+    def validate(self, attrs):
+        attrs.pop('login_with_code', None)
+        return super().validate(attrs)
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
@@ -128,9 +129,9 @@ class VerifyAuthSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AuthRequest
-        fields = ['request_id', 'user_key', 'pass_code']
+        fields = ['request_id', 'user_key', 'code']
 
-        read_only_fields = ['pass_code']
+        read_only_fields = ['code']
 
     def validate(self, attrs):
 
@@ -150,12 +151,12 @@ class VerifyAuthSerializer(serializers.ModelSerializer):
         return attrs
 
     def auth_is_valid(self, auth_request: AuthRequest, user_key):
-        if auth_request.request_method == 'pass':
+        if auth_request.auth_status == AuthRequest.MobileStatuses.LOGIN_PASSWORD:
 
             return self.__validate_password(auth_request.receiver, user_key)
 
         else:
-            return self.__validate_code(user_key, auth_request.pass_code)
+            return self.__validate_code(user_key, auth_request.code)
 
     @staticmethod
     def _get_auth_request(data: dict):
@@ -174,19 +175,21 @@ class VerifyAuthSerializer(serializers.ModelSerializer):
         return bool(user_code == pass_code)
 
     @staticmethod
-    def __validate_password(username, user_key):
-        errors = dict()
-        user_is_exist = bool(authenticate(username=username, password=user_key))
-        logger.info(user_is_exist)
+    def __validate_password(mobile, user_key):
+        return bool(authenticate(username=mobile, password=user_key))
 
-        if not user_is_exist:
-            try:
-                validator.validate_password(password=user_key)
 
-            except ValidationError as e:
-                errors['password'] = list(e.messages)
+class PasswordSerializer(serializers.Serializer):
+    password = serializers.CharField(max_length=64, write_only=True,
+                                     style={'input_type': 'password'}, validators=[validator.validate_password])
 
-            if errors:
-                raise serializers.ValidationError(errors)
+    password2 = serializers.CharField(max_length=64, write_only=True, style={'input_type': 'password'})
 
-        return user_is_exist
+    def validate(self, attrs):
+        if attrs['password'] != attrs['password2']:
+            raise serializers.ValidationError('passwords are not match')
+        return attrs
+
+    def create(self, validated_data): pass
+
+    def update(self, instance, validated_data): pass

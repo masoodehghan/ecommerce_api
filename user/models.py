@@ -33,19 +33,20 @@ def generate_code():
 
 
 class AuthRequest(models.Model):
-    class RequestMethod(models.TextChoices):
-        PASSWORD = 'pass'
-        SMS = 'sms'
+    class MobileStatuses(models.TextChoices):
+        NOT_REGISTERED = 'not_reg'
+        LOGIN_PASSWORD = 'login_pass'
+        LOGIN_CODE = 'login_code'
 
     request_id = models.UUIDField(
         default=uuid.uuid4, primary_key=True, db_index=True, editable=False
     )
 
-    request_method = models.CharField(
-        max_length=7, choices=RequestMethod.choices,
+    auth_status = models.CharField(
+        max_length=10, choices=MobileStatuses.choices,
     )
 
-    pass_code = models.CharField(max_length=5, blank=True)
+    code = models.CharField(max_length=5, blank=True, null=True)
 
     expire_time = models.DateTimeField(
         default=timezone.now() + timedelta(minutes=2)
