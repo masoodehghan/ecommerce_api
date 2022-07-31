@@ -26,48 +26,38 @@ class User(AbstractUser):
     def __str__(self):
         return self.username
 
+    # TODO: add online function
+
 
 def generate_code():
-    code = str(choice(range(10000, 99999)))
+    code = ''.join(choice(digits) for _ in range(5))
     return code
 
 
 class AuthRequest(models.Model):
-    class MobileStatuses(models.TextChoices):
-        NOT_REGISTERED = 'not_reg'
-        LOGIN_PASSWORD = 'login_pass'
-        LOGIN_CODE = 'login_code'
+    class RequestMethod(models.TextChoices):
+        EMAIL = 'email'
+        PHONE = 'phone'
 
     request_id = models.UUIDField(
         default=uuid.uuid4, primary_key=True, db_index=True, editable=False
     )
 
-    auth_status = models.CharField(
-        max_length=10, choices=MobileStatuses.choices,
+    request_method = models.CharField(
+        max_length=7, choices=RequestMethod.choices,
+        default=RequestMethod.PHONE
     )
 
-    code = models.CharField(max_length=5, blank=True, null=True)
+    pass_code = models.CharField(max_length=5, default=generate_code)
 
     expire_time = models.DateTimeField(
         default=timezone.now() + timedelta(minutes=2)
     )
 
-    created = models.DateTimeField(default=timezone.now)
-    modified = models.DateTimeField(blank=True)
-
     receiver = models.CharField(max_length=64)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.receiver
-
-    def save(self, *args, **kwargs):
-
-        self.modified = timezone.now()
-
-        if self.pk:
-            self.expire_time = self.modified + timedelta(minutes=2)
-
-        return super().save(*args, **kwargs)
 
 
 class Address(models.Model):
