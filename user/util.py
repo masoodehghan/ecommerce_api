@@ -16,7 +16,7 @@ def send_email_to_user(user_email, pass_code):
     )
 
 
-def generate_and_send_code(mobile):
+def generate_and_send_code(receiver_email):
     code = str(random.randint(10000, 99999))
     print('pass_code: ', code)
     return code

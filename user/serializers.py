@@ -9,6 +9,7 @@ from django_countries.fields import CountryField
 from django.utils import timezone
 from rest_framework.authtoken.models import Token
 from .util import send_email_to_user
+from django.contrib.auth import authenticate
 import logging
 
 logger = logging.getLogger('info')
@@ -102,8 +103,15 @@ class AuthRequestSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AuthRequest
-        fields = ['request_id', 'receiver', 'request_method', 'pass_code']
-        read_only_fields = ['request_id', 'pass_code']
+        fields = ['request_id', 'receiver', 'request_method']
+        read_only_fields = ['request_id']
+
+    def validate_receiver(self, value):
+
+        if not re.findall(r'^09\d{9}$', value):
+            raise serializers.ValidationError('enter a valid phone number')
+
+        return value
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
@@ -137,9 +145,7 @@ class VerifyAuthSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AuthRequest
-        fields = ['request_id', 'user_code', 'pass_code']
-
-        extra_kwargs = {'request_id': {'read_only': False, 'required': False}}
+        fields = ['request_id', 'user_key', 'pass_code']
 
         read_only_fields = ['pass_code']
 
@@ -157,6 +163,14 @@ class VerifyAuthSerializer(serializers.ModelSerializer):
         self.__validate_code(user_code, self.instance.pass_code)
 
         return attrs
+
+    def auth_is_valid(self, auth_request: AuthRequest, user_key):
+        if auth_request.request_method == 'pass':
+
+            return self.__validate_password(auth_request.receiver, user_key)
+
+        else:
+            return self.__validate_code(user_key, auth_request.pass_code)
 
     @staticmethod
     def _get_auth_request(data):
@@ -178,27 +192,19 @@ class VerifyAuthSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('your token is incorrect')
 
     @staticmethod
-    def _delete_auth_request(id):
-        AuthRequest.objects.filter(request_id=id).delete()
+    def __validate_password(username, user_key):
+        errors = dict()
+        user_is_exist = bool(authenticate(username=username, password=user_key))
+        logger.info(user_is_exist)
 
-    def create(self, validated_data): pass
+        if not user_is_exist:
+            try:
+                validator.validate_password(password=user_key)
 
-    def to_representation(self, instance):
+            except ValidationError as e:
+                errors['password'] = list(e.messages)
 
-        if self.instance.request_method == 'email':
+            if errors:
+                raise serializers.ValidationError(errors)
 
-            user_email = instance.receiver
-
-            user, created = User.objects.get_or_create(
-                username=user_email.split('@')[0], email=user_email
-            )
-
-            logger.info(user)
-            token = Token.objects.get(user=user)
-
-        self._delete_auth_request(instance.request_id)
-
-        return {
-            'created': created,
-            'token': token.key
-        }
+        return user_is_exist
