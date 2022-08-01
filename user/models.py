@@ -44,20 +44,32 @@ class AuthRequest(models.Model):
         default=uuid.uuid4, primary_key=True, db_index=True, editable=False
     )
 
-    request_method = models.CharField(
-        max_length=7, choices=RequestMethod.choices,
+    auth_status = models.CharField(
+        max_length=10, choices=MobileStatuses.choices,
     )
 
-    pass_code = models.CharField(max_length=5, blank=True)
+    code = models.CharField(max_length=5, blank=True, null=True)
 
     expire_time = models.DateTimeField(
         default=timezone.now() + timedelta(minutes=2)
     )
 
+    modified = models.DateTimeField()
+    created = models.DateTimeField(default=timezone.now)
+
     receiver = models.CharField(max_length=64)
 
     def __str__(self) -> str:
         return self.receiver
+
+    def save(self, *args, **kwargs):
+
+        self.modified = timezone.now()
+
+        if self.pk:
+            self.expire_time = self.modified + timedelta(minutes=2)
+
+        return super().save(*args, **kwargs)
 
 
 class Address(models.Model):

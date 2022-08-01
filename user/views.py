@@ -1,16 +1,16 @@
 from datetime import timedelta
 from django.utils import timezone
-from rest_framework import generics, permissions, status
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework import generics, status, viewsets, mixins
 from rest_framework.response import Response
-from .models import Address, AuthRequest
+from .models import Address, AuthRequest, Review
 from .util import generate_and_send_code
 from .serializers import (
-    RegisterSerializer,
     AddressSerializer,
     UserSerializer,
     ReviewSerializer,
     AuthRequestSerializer,
-    VerifyAuthSerializer
+    VerifyAuthSerializer, PasswordSerializer
 )
 
 from django.contrib.auth import get_user_model
@@ -19,20 +19,17 @@ from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from product.models import Product
 from rest_framework.exceptions import NotAcceptable
-from django.contrib.auth import authenticate
 from rest_framework.authtoken.models import Token
+from django.contrib.auth import login
+import logging
 
+logger = logging.getLogger('info')
 User = get_user_model()
-
-
-class UserCreateView(generics.CreateAPIView):
-    serializer_class = RegisterSerializer
-    permission_classes = [permissions.AllowAny]
 
 
 class UserListView(generics.ListAPIView):
     serializer_class = UserSerializer
-    permissions = [permissions.AllowAny]
+    permissions = [AllowAny]
 
     queryset = User.objects.prefetch_related('groups').all()
 
@@ -54,56 +51,82 @@ class ProfileView(generics.RetrieveAPIView, generics.UpdateAPIView):
 
 
 class LogoutView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
-    def get(self, request, *args, **kwargs):
+    def post(self, request, *args, **kwargs):
         request.user.auth_token.delete()
 
         return Response("you Logged out successfully.", status=200)
 
 
-class AddressCreateView(generics.CreateAPIView):
+class AddressViewSet(mixins.RetrieveModelMixin,
+                     mixins.DestroyModelMixin,
+                     mixins.UpdateModelMixin,
+                     mixins.CreateModelMixin,
+                     viewsets.GenericViewSet):
+
     serializer_class = AddressSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    queryset = Address.objects.all()
+
+    def get_permissions(self):
+        if self.action == 'create':
+            permission_classes = [IsAuthenticated]
+
+        else:
+            permission_classes = [IsOwner]
+
+        return [permission() for permission in permission_classes]
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
 
-class AddressRetrieveView(generics.RetrieveUpdateDestroyAPIView):
-    serializer_class = AddressSerializer
-    permission_classes = [IsOwner]
-    queryset = Address.objects.all()
+class ReviewViewSet(mixins.UpdateModelMixin,
+                    mixins.DestroyModelMixin,
+                    mixins.CreateModelMixin,
+                    viewsets.GenericViewSet):
 
-
-class ReviewCreate(generics.CreateAPIView):
     serializer_class = ReviewSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    queryset = Review.objects.all()
 
     def perform_create(self, serializer):
-        product = get_object_or_404(Product, pk=self.request.data['product'])
+        product = serializer.validated_data['product']
 
-        if product.seller == self.request.user:
+        if product.seller_id == self.request.user.id:
             raise NotAcceptable('you cant review your own product')
 
         return serializer.save(user=self.request.user)
 
+    def get_permissions(self):
+        if self.action == 'create':
+            permission_classes = [IsAuthenticated]
 
-class ReviewUpdateDestroy(generics.UpdateAPIView, generics.DestroyAPIView):
-    serializer_class = ReviewSerializer
-    permission_classes = [IsOwner]
+        else:
+            permission_classes = [IsOwner]
+
+        return [permission() for permission in permission_classes]
 
 
-class AuthRequestView(generics.CreateAPIView):
+class AuthRequestView(generics.GenericAPIView):
     serializer_class = AuthRequestSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
 
         serializer.is_valid(raise_exception=True)
+        mobile = serializer.validated_data['receiver']
 
-        self.perform_create(serializer)
+        mobile_status = self._get_mobile_status(
+            mobile, request.data.get('login_with_code'))
+
+        if mobile_status == AuthRequest.MobileStatuses.NOT_REGISTERED:
+            self._create_user(mobile)
+
+        code = None if mobile_status == AuthRequest.MobileStatuses.PASSWORD_LOGIN \
+            else generate_and_send_code(mobile)
+
+        serializer.save(code=code, auth_status=mobile_status)
 
         response = Response(serializer.data, status.HTTP_201_CREATED)
 
@@ -115,22 +138,45 @@ class AuthRequestView(generics.CreateAPIView):
 
         return response
 
-    def perform_create(self, serializer):
-        if serializer.validated_data['request_method'] == 'sms':
-            code = generate_and_send_code(serializer.validated_data['receiver'])
-            serializer.save(pass_code=code)
+    def _get_mobile_status(self, mobile, login_with_code):
+        user = self._get_user(mobile)
+
+        if user is None:
+            return AuthRequest.MobileStatuses.NOT_REGISTERED
+
+        if login_with_code:
+            return AuthRequest.MobileStatuses.CODE_LOGIN
+
+        if user and not user.password:
+            user.set_unusable_password()
+
+        if user and user.has_usable_password():
+            return AuthRequest.MobileStatuses.PASSWORD_LOGIN
 
         else:
-            serializer.save()
+            raise NotAcceptable(
+                'you have not set your password you can login using verification code')
+
+    @staticmethod
+    def _get_user(mobile):
+        try:
+            return User.objects.get(username=mobile)
+        except User.DoesNotExist:
+            return None
+
+    @staticmethod
+    def _create_user(mobile):
+        User.objects.create_user(username=mobile)
 
 
 class AuthRequestVerifyView(generics.GenericAPIView):
     """
     users can login with either password or code that sms to user
+    and if users not registered will create it.
     """
 
     serializer_class = VerifyAuthSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
         serializer = self.serializer_class(
@@ -139,36 +185,12 @@ class AuthRequestVerifyView(generics.GenericAPIView):
 
         serializer.is_valid(raise_exception=True)
 
-        mobile = serializer.instance.receiver
+        user = User.objects.get(username=serializer.instance.receiver)
+        login(request, user)
+        token = Token.objects.get(user=user)
+        self._delete_auth_request(serializer.data['request_id'])
 
-        if serializer.instance.request_method == 'sms':
-            user, created = self._login_register_sms(mobile)
-
-        else:
-            user, created = self._login_register_using_password(mobile, request.data['user_key'])
-
-        token = get_object_or_404(Token, user=user)
-        self._delete_auth_request(serializer.validated_data['request_id'])
-
-        return Response({'token': token.key, 'created': created}, status.HTTP_200_OK)
-
-    @staticmethod
-    def _login_register_sms(mobile):
-        user, created = User.objects.get_or_create(username=mobile)
-
-        return user, created
-
-    @staticmethod
-    def _login_register_using_password(mobile, password):
-        user = authenticate(username=mobile, password=password)
-        created = False
-
-        if user is None:
-            user = User.objects.create_user(username=mobile, password=password)
-
-            created = True
-
-        return user, created
+        return Response({'token': token.key}, status.HTTP_200_OK)
 
     @staticmethod
     def _delete_auth_request(req_id):
@@ -177,7 +199,7 @@ class AuthRequestVerifyView(generics.GenericAPIView):
 
 class ResendCodeView(generics.GenericAPIView):
     serializer_class = AuthRequestSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [AllowAny]
 
     def get_object(self):
         request_id = self.request.COOKIES.get('_req_id_')
@@ -186,6 +208,7 @@ class ResendCodeView(generics.GenericAPIView):
 
     def patch(self, request, *args, **kwargs):
         obj = self.get_object()
+
         serializer = AuthRequestSerializer(
             instance=obj,
             data={'receiver': obj.receiver},
@@ -203,9 +226,28 @@ class ResendCodeView(generics.GenericAPIView):
 
         if auth_request:
             code = generate_and_send_code(receiver)
-            serializer.save(pass_code=code)
+            serializer.save(code=code)
 
             return Response(serializer.data, status.HTTP_200_OK)
 
         else:
             raise NotAcceptable('you have to wait 2 minutes to resend code')
+
+
+class SetPasswordView(generics.GenericAPIView):
+    serializer_class = PasswordSerializer
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        user = self.request.user
+        if user.has_usable_password():
+            raise NotAcceptable('you have set your password')
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        self.check_object_permissions(request, user)
+
+        user.set_password(serializer.validated_data['password'])
+
+        return Response({'message': 'password set.'}, status.HTTP_200_OK)

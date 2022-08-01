@@ -100,77 +100,65 @@ class ReviewMiniSerializer(serializers.ModelSerializer):
 
 
 class AuthRequestSerializer(serializers.ModelSerializer):
+    login_with_code = serializers.BooleanField(default=False, write_only=True)
 
     class Meta:
         model = AuthRequest
-        fields = ['request_id', 'receiver', 'request_method']
-        read_only_fields = ['request_id']
+        fields = ['request_id', 'receiver', 'auth_status', 'login_with_code']
+        read_only_fields = ['request_id', 'auth_status']
+
+    def validate(self, attrs):
+        attrs.pop('login_with_code', None)
+        return super().validate(attrs)
 
     def validate_receiver(self, value):
 
         if not re.findall(r'^09\d{9}$', value):
             raise serializers.ValidationError('enter a valid phone number')
-
         return value
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
-        self._send_code(instance.receiver, ret.pop('pass_code'))
-
+        ret.pop('receiver')
         return ret
-
-    def validate(self, data):
-
-        if data['request_method'] == 'email':
-            email_regex = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
-
-            if re.fullmatch(email_regex, data['receiver']):
-                return data
-            else:
-                raise ValidationError('email is not valid.')
-
-        else:
-            pass  # TODO: add phone number validation
-
-    @staticmethod
-    def _send_code(receiver_email, pass_code):
-
-        # print('pass_code: ', pass_code)
-        send_email_to_user(receiver_email, pass_code)
 
 
 class VerifyAuthSerializer(serializers.ModelSerializer):
-    user_code = serializers.CharField(
-        max_length=5, required=True, write_only=True)
+    user_key = serializers.CharField(max_length=32, required=True,
+                                      write_only=True)
+
+    request_id = serializers.UUIDField(read_only=False, required=False,
+                                       help_text='override from cookie')
 
     class Meta:
         model = AuthRequest
-        fields = ['request_id', 'user_key', 'pass_code']
+        fields = ['request_id', 'user_key', 'code']
 
-        read_only_fields = ['pass_code']
+        read_only_fields = ['code']
 
     def validate(self, attrs):
-        try:
-            attrs['request_id'] = self.context['request'].COOKIES['request_id']
+        req_id = self.context['request'].COOKIES.get('_req_id_')
 
-        except KeyError:
-            raise ValidationError('request_id expired')
+        if req_id is None:
+            raise serializers.ValidationError('your request has expired')
 
-        user_code = attrs.pop('user_code')
+        attrs['request_id'] = req_id
+        user_key = attrs.pop('user_key')
 
         self.instance = self._get_auth_request(attrs)
 
-        self.__validate_code(user_code, self.instance.pass_code)
+        if not self.auth_is_valid(self.instance, user_key):
+            raise serializers.ValidationError('invalid credential.')
 
         return attrs
 
     def auth_is_valid(self, auth_request: AuthRequest, user_key):
-        if auth_request.request_method == 'pass':
+        if auth_request.auth_status == AuthRequest.MobileStatuses.PASSWORD_LOGIN:
 
             return self.__validate_password(auth_request.receiver, user_key)
 
         else:
-            return self.__validate_code(user_key, auth_request.pass_code)
+            return self.__validate_code(user_key, auth_request.code)
 
     @staticmethod
     def _get_auth_request(data):
@@ -182,29 +170,30 @@ class VerifyAuthSerializer(serializers.ModelSerializer):
 
         return auth_request
 
-    def __validate_code(self, user_code, pass_code):
-        logger.info(self.instance.expire_time)
+    def __validate_code(self, user_code, code):
 
         if timezone.now() > self.instance.expire_time:
             raise serializers.ValidationError('your token is expired')
 
-        elif user_code != pass_code:
-            raise serializers.ValidationError('your token is incorrect')
+        return user_code == code
 
     @staticmethod
     def __validate_password(username, user_key):
-        errors = dict()
-        user_is_exist = bool(authenticate(username=username, password=user_key))
-        logger.info(user_is_exist)
+        return bool(authenticate(username=username, password=user_key))
 
-        if not user_is_exist:
-            try:
-                validator.validate_password(password=user_key)
 
-            except ValidationError as e:
-                errors['password'] = list(e.messages)
+class PasswordSerializer(serializers.Serializer):
+    password = serializers.CharField(max_length=32, write_only=True, style={'input_type': 'password'},
+                                     validators=[validator.validate_password])
 
-            if errors:
-                raise serializers.ValidationError(errors)
+    password2 = serializers.CharField(max_length=32, write_only=True, style={'input_type': 'password'})
 
-        return user_is_exist
+    def validate(self, attrs):
+        if attrs['password'] != attrs['password2']:
+            raise serializers.ValidationError('passwords are not similar')
+
+        return attrs
+
+    def create(self, validated_data): pass
+
+    def update(self, instance, validated_data): pass
