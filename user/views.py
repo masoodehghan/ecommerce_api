@@ -1,4 +1,6 @@
 from datetime import timedelta
+
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework import generics, status, viewsets, mixins
@@ -17,11 +19,11 @@ from django.contrib.auth import get_user_model
 from .permissions import IsOwner
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
-from product.models import Product
 from rest_framework.exceptions import NotAcceptable
 from rest_framework.authtoken.models import Token
 from django.contrib.auth import login
 import logging
+from rest_framework.decorators import action
 
 logger = logging.getLogger('info')
 User = get_user_model()
@@ -64,7 +66,6 @@ class AddressViewSet(mixins.RetrieveModelMixin,
                      mixins.UpdateModelMixin,
                      mixins.CreateModelMixin,
                      viewsets.GenericViewSet):
-
     serializer_class = AddressSerializer
     queryset = Address.objects.all()
 
@@ -85,7 +86,6 @@ class ReviewViewSet(mixins.UpdateModelMixin,
                     mixins.DestroyModelMixin,
                     mixins.CreateModelMixin,
                     viewsets.GenericViewSet):
-
     serializer_class = ReviewSerializer
     queryset = Review.objects.all()
 
@@ -107,12 +107,21 @@ class ReviewViewSet(mixins.UpdateModelMixin,
         return [permission() for permission in permission_classes]
 
 
-class AuthRequestView(generics.GenericAPIView):
-    serializer_class = AuthRequestSerializer
-    permission_classes = [AllowAny]
+class AuthRequestViewSet(viewsets.GenericViewSet):
 
-    def post(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+    def get_serializer_class(self):
+        if self.action in ['login', 'resend_code']:
+            return AuthRequestSerializer
+
+        if self.action == 'set_password':
+            return PasswordSerializer
+
+        else:
+            return VerifyAuthSerializer
+
+    @action(methods=['post'], detail=False, url_name='login', url_path='login')
+    def login(self, request, *args, **kwargs):
+        serializer = AuthRequestSerializer(data=request.data)
 
         serializer.is_valid(raise_exception=True)
         mobile = serializer.validated_data['receiver']
@@ -168,18 +177,14 @@ class AuthRequestView(generics.GenericAPIView):
     def _create_user(mobile):
         User.objects.create_user(username=mobile)
 
+    def get_object(self):
+        request_id = self.request.COOKIES.get('_req_id_')
+        obj = get_object_or_404(AuthRequest, request_id=request_id)
+        return obj
 
-class AuthRequestVerifyView(generics.GenericAPIView):
-    """
-    users can login with either password or code that sms to user
-    and if users not registered will create it.
-    """
-
-    serializer_class = VerifyAuthSerializer
-    permission_classes = [AllowAny]
-
-    def post(self, request, *args, **kwargs):
-        serializer = self.serializer_class(
+    @action(methods=['post'], detail=False, url_name='verify_login', url_path='login/verify')
+    def login_verify(self, request, *args, **kwargs):
+        serializer = VerifyAuthSerializer(
             data=request.data, context=self.get_serializer_context()
         )
 
@@ -196,18 +201,25 @@ class AuthRequestVerifyView(generics.GenericAPIView):
     def _delete_auth_request(req_id):
         AuthRequest.objects.filter(request_id=req_id).delete()
 
+    @action(methods=['post'], detail=False, permission_classes=[IsAuthenticated], url_path="set_password")
+    def set_password(self, request, *args, **kwargs):
+        user = self.request.user
+        if user.has_usable_password():
+            raise NotAcceptable('you have set your password')
 
-class ResendCodeView(generics.GenericAPIView):
-    serializer_class = AuthRequestSerializer
-    permission_classes = [AllowAny]
+        serializer = PasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-    def get_object(self):
-        request_id = self.request.COOKIES.get('_req_id_')
-        obj = get_object_or_404(AuthRequest, request_id=request_id)
-        return obj
+        user.set_password(serializer.validated_data['password'])
 
-    def patch(self, request, *args, **kwargs):
+        return Response({'message': 'password set.'}, status.HTTP_200_OK)
+
+    @action(methods=['patch'], detail=False)
+    def resend_code(self, request, *args, **kwargs):
         obj = self.get_object()
+
+        if obj.auth_status == AuthRequest.MobileStatuses.PASSWORD_LOGIN:
+            raise NotAcceptable('you cant do this action')
 
         serializer = AuthRequestSerializer(
             instance=obj,
@@ -217,14 +229,15 @@ class ResendCodeView(generics.GenericAPIView):
         )
 
         serializer.is_valid(raise_exception=True)
-        receiver = serializer.validated_data['receiver']
+        receiver = obj.receiver
 
         auth_request = AuthRequest.objects.filter(
-            receiver=receiver,
-            created__lt=timezone.now() - timedelta(minutes=2)
+            Q(receiver=receiver) &
+            Q(created__lt=timezone.now() - timedelta(minutes=2)) &
+            Q(request_id=obj.request_id)
         )
 
-        if auth_request:
+        if auth_request.exists():
             code = generate_and_send_code(receiver)
             serializer.save(code=code)
 
@@ -232,22 +245,3 @@ class ResendCodeView(generics.GenericAPIView):
 
         else:
             raise NotAcceptable('you have to wait 2 minutes to resend code')
-
-
-class SetPasswordView(generics.GenericAPIView):
-    serializer_class = PasswordSerializer
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, *args, **kwargs):
-        user = self.request.user
-        if user.has_usable_password():
-            raise NotAcceptable('you have set your password')
-
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        self.check_object_permissions(request, user)
-
-        user.set_password(serializer.validated_data['password'])
-
-        return Response({'message': 'password set.'}, status.HTTP_200_OK)

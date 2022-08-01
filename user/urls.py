@@ -6,6 +6,7 @@ from rest_framework.routers import SimpleRouter
 router = SimpleRouter()
 router.register(r'address', views.AddressViewSet)
 router.register(r'review', views.ReviewViewSet)
+router.register(r'', views.AuthRequestViewSet, basename='auth')
 
 
 urlpatterns = [
@@ -15,10 +16,6 @@ urlpatterns = [
 
     path('logout', views.LogoutView.as_view(), name='logout'),
 
-    path('login/', views.AuthRequestView.as_view(), name='login'),
-    path('login/verify/', views.AuthRequestVerifyView.as_view(), name='login_verify'),
-    path('resend-code/', views.ResendCodeView.as_view(), name='resend_code'),
-    path('set-password/', views.SetPasswordView.as_view(), name='set-password')
 ]
 
 urlpatterns += router.urls

@@ -119,7 +119,6 @@ class AuthRequestSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
-        ret.pop('receiver')
         return ret
 
 
