@@ -1,5 +1,4 @@
 from datetime import timedelta
-
 from django.db.models import Q
 from django.utils import timezone
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -119,7 +118,7 @@ class AuthRequestViewSet(viewsets.GenericViewSet):
         else:
             return VerifyAuthSerializer
 
-    @action(methods=['post'], detail=False, url_name='login', url_path='login')
+    @action(methods=['post'], detail=False, url_name='login', url_path='login', permission_classes=[AllowAny])
     def login(self, request, *args, **kwargs):
         serializer = AuthRequestSerializer(data=request.data)
 
@@ -182,7 +181,8 @@ class AuthRequestViewSet(viewsets.GenericViewSet):
         obj = get_object_or_404(AuthRequest, request_id=request_id)
         return obj
 
-    @action(methods=['post'], detail=False, url_name='verify_login', url_path='login/verify')
+    @action(methods=['post'], detail=False, url_name='verify_login',
+            url_path='login/verify', permission_classes=[AllowAny])
     def login_verify(self, request, *args, **kwargs):
         serializer = VerifyAuthSerializer(
             data=request.data, context=self.get_serializer_context()
@@ -211,10 +211,11 @@ class AuthRequestViewSet(viewsets.GenericViewSet):
         serializer.is_valid(raise_exception=True)
 
         user.set_password(serializer.validated_data['password'])
+        user.save()
 
         return Response({'message': 'password set.'}, status.HTTP_200_OK)
 
-    @action(methods=['patch'], detail=False)
+    @action(methods=['patch'], detail=False, permission_classes=[AllowAny])
     def resend_code(self, request, *args, **kwargs):
         obj = self.get_object()
 

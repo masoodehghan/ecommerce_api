@@ -87,16 +87,15 @@ class CategorySerializer(serializers.ModelSerializer):
 
 class ProductSerializer(serializers.ModelSerializer):
     seller = serializers.CharField(source='seller.username', read_only=True)
-
-    category_name = serializers.CharField(
-        source='category.name', read_only=True)
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    url = serializers.URLField(source='get_absolute_url', read_only=True)
 
     class Meta:
         model = Product
         exclude = ['modified']
         extra_kwargs = {'category': {'write_only': True}}
 
-        read_only_fields = ['views', 'seller', 'slug']
+        read_only_fields = ['url', 'views', 'seller', 'slug']
 
     def validate(self, data):
 

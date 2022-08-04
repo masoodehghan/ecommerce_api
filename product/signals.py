@@ -24,7 +24,7 @@ def create_slug_category(sender, instance=None, **kwargs):
 
 def create_unique_slug(instance):
 
-    slug = slugify(instance.name)
+    slug = slugify(instance.name, allow_unicode=True)
     sender = instance.__class__
 
     query_set = sender.objects.filter(slug=slug).values('slug')

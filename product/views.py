@@ -1,3 +1,5 @@
+from .filters import ProductFilterSet
+from django_filters.rest_framework import DjangoFilterBackend
 from .serializers import (
     ProductSerializer, CategorySerializer, ProductMiniSerializer
 )
@@ -12,9 +14,8 @@ logger = logging.getLogger('info')
 
 class ProductList(generics.ListCreateAPIView):
     serializer_class = ProductSerializer
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-
-    search_fields = ['name', 'seller', 'category__name']
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = ProductFilterSet
 
     ordering_fields = ['views', 'price', 'created']
 

@@ -8,7 +8,6 @@ router.register(r'address', views.AddressViewSet)
 router.register(r'review', views.ReviewViewSet)
 router.register(r'', views.AuthRequestViewSet, basename='auth')
 
-
 urlpatterns = [
     path('token/', obtain_auth_token, name='token'),
     path('userlist/', views.UserListView.as_view(), name='user_list'),

@@ -10,7 +10,7 @@ urlpatterns = [
     ),
 
     path(
-        'products/<slug:slug>/',
+        'products/<str:slug>/',
         views.ProductDetail.as_view(),
         name='product-detail'
     ),

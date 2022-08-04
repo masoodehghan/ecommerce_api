@@ -2,6 +2,7 @@ from django.db import models
 from django.conf import settings
 from django.core.validators import MinValueValidator
 from ecommerce.utils import TimeStampModel
+from django.urls import reverse
 
 
 class CategoryManager(models.Manager):
@@ -82,11 +83,11 @@ class Product(TimeStampModel):
         max_digits=8, decimal_places=2, default=0, blank=True,
         validators=[MinValueValidator(0)])
 
-    class Meta:
-        ordering = ['-id']
-
     def __str__(self):
         return self.name
+
+    def get_absolute_url(self):
+        return reverse('product-detail', kwargs={'slug': self.slug})
 
 
 class ProductView(TimeStampModel):
