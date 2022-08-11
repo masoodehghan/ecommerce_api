@@ -17,7 +17,7 @@ class CategoryChildSerializer(serializers.ModelSerializer):
             return []
 
         context = {'max_depth': max_depth}
-
+        print(max_depth)
         return CategoryChildSerializer(
             obj.children, many=True, context=context).data
 

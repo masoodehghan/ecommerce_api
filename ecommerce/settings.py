@@ -129,6 +129,7 @@ if DEBUG:
         "rest_framework.authentication.SessionAuthentication"
     )
 
+LOGIN_URL = 'api/accounts/login/'
 AUTH_USER_MODEL = 'user.User'
 
 # Internationalization
@@ -200,7 +201,7 @@ LOGGING = {
 
     },
 }
-
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 EMAIL_HOST = '0.0.0.0'
 EMAIL_PORT = 1025
 EMAIL_USER = ''

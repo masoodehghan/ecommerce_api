@@ -11,9 +11,6 @@ urlpatterns = [
     path('api/', include('cart.urls')),
     path('api/', include('order.urls')),
     path('__debug__/', include('debug_toolbar.urls')),
-    path(
-        'api-auth/',
-        include('rest_framework.urls', namespace='rest_framework'))
 ]
 
 urlpatterns += static(settings.MEDIA_ROOT, document_root=settings.MEDIA_URL)

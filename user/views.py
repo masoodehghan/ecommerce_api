@@ -5,13 +5,17 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework import generics, status, viewsets, mixins
 from rest_framework.response import Response
 from .models import Address, AuthRequest, Review
-from .util import generate_and_send_code
+from .util import generate_and_send_code, sensitive_post_parameters_m
 from .serializers import (
     AddressSerializer,
     UserSerializer,
     ReviewSerializer,
     AuthRequestSerializer,
-    VerifyAuthSerializer, PasswordSerializer
+    VerifyAuthSerializer,
+    PasswordSerializer,
+    PasswordResetCompleteSerializer,
+    PasswordResetSerializer,
+    PasswordChangeSerializer
 )
 
 from django.contrib.auth import get_user_model
@@ -20,7 +24,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from rest_framework.exceptions import NotAcceptable
 from rest_framework.authtoken.models import Token
-from django.contrib.auth import login
+from django.contrib.auth import login, logout
 import logging
 from rest_framework.decorators import action
 
@@ -55,9 +59,9 @@ class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
-        request.user.auth_token.delete()
+        logout(request)
 
-        return Response("you Logged out successfully.", status=200)
+        return Response({"detail": "you Logged out successfully."}, status=200)
 
 
 class AddressViewSet(mixins.RetrieveModelMixin,
@@ -107,12 +111,23 @@ class ReviewViewSet(mixins.UpdateModelMixin,
 
 
 class AuthRequestViewSet(viewsets.GenericViewSet):
+    lookup_url_kwarg = ['uid', 'token']
+
+    @sensitive_post_parameters_m
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
 
     def get_serializer_class(self):
         if self.action in ['login', 'resend_code']:
             return AuthRequestSerializer
 
-        if self.action == 'set_password':
+        elif self.action == 'change_password':
+            return PasswordChangeSerializer
+
+        elif self.action == 'reset_password':
+            return PasswordResetSerializer
+
+        elif self.action == 'set_password':
             return PasswordSerializer
 
         else:
@@ -192,7 +207,9 @@ class AuthRequestViewSet(viewsets.GenericViewSet):
 
         user = User.objects.get(username=serializer.instance.receiver)
         login(request, user)
+        print('user: ', user)
         token = Token.objects.get(user=user)
+
         self._delete_auth_request(serializer.data['request_id'])
 
         return Response({'token': token.key}, status.HTTP_200_OK)
@@ -201,7 +218,7 @@ class AuthRequestViewSet(viewsets.GenericViewSet):
     def _delete_auth_request(req_id):
         AuthRequest.objects.filter(request_id=req_id).delete()
 
-    @action(methods=['post'], detail=False, permission_classes=[IsAuthenticated], url_path="set_password")
+    @action(methods=['post'], detail=False, permission_classes=[IsAuthenticated], url_path="password/set")
     def set_password(self, request, *args, **kwargs):
         user = self.request.user
         if user.has_usable_password():
@@ -246,3 +263,36 @@ class AuthRequestViewSet(viewsets.GenericViewSet):
 
         else:
             raise NotAcceptable('you have to wait 2 minutes to resend code')
+
+    @action(['POST'], detail=False, url_path='password/reset', permission_classes=[AllowAny])
+    def reset_password(self, request):
+        serializer = PasswordResetSerializer(data=request.data, context=self.get_serializer_context())
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response({'detail': 'password reset email sent to you.'}, status.HTTP_200_OK)
+
+    @action(['POST'], detail=False, url_path='password/change')
+    def change_password(self, request):
+        serializer = PasswordChangeSerializer(data=request.data, context=self.get_serializer_context())
+        serializer.is_valid(raise_exception=True)
+
+        serializer.save()
+        return Response({'detail': 'password changed successfully'}, status.HTTP_200_OK)
+
+
+class ResetPasswordConfirmView(generics.GenericAPIView):
+    serializer_class = PasswordResetCompleteSerializer
+    permission_classes = [AllowAny]
+
+    @sensitive_post_parameters_m
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        serializer.save()
+
+        return Response({'detail': 'password change successfully'}, status.HTTP_200_OK)

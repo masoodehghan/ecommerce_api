@@ -1,5 +1,9 @@
 from django.urls import path
 from . import views
+from rest_framework.routers import SimpleRouter
+
+router = SimpleRouter()
+router.register(r'category', views.CategoryViewSet)
 
 
 urlpatterns = [
@@ -16,12 +20,6 @@ urlpatterns = [
     ),
 
     path(
-        'category/',
-        views.CategoryListCreate.as_view(),
-        name='category-list'
-    ),
-
-    path(
         'category/<slug:slug>/products/',
         views.ProductListByCategory.as_view(),
         name='category-prodcuts'
@@ -34,3 +32,5 @@ urlpatterns = [
     )
 
 ]
+
+urlpatterns += router.urls

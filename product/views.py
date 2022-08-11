@@ -1,13 +1,21 @@
+import asyncio
+
 from .filters import ProductFilterSet
 from django_filters.rest_framework import DjangoFilterBackend
 from .serializers import (
-    ProductSerializer, CategorySerializer, ProductMiniSerializer
+    ProductSerializer,
+    CategorySerializer,
+    ProductMiniSerializer,
+    CategoryChildSerializer
 )
 from .models import Product, Category, ProductView
-from rest_framework import permissions, generics, filters
+from rest_framework import permissions, generics, filters, mixins
 from .permissions import IsSeller
 from django.shortcuts import get_object_or_404
 import logging
+from rest_framework.viewsets import GenericViewSet
+from rest_framework.decorators import action
+from rest_framework.response import Response
 
 logger = logging.getLogger('info')
 
@@ -63,9 +71,11 @@ class ProductDetail(generics.RetrieveUpdateDestroyAPIView):
             product.save()
 
 
-class CategoryListCreate(generics.ListCreateAPIView):
+class CategoryViewSet(mixins.ListModelMixin, mixins.CreateModelMixin, GenericViewSet):
     serializer_class = CategorySerializer
     queryset = Category.objects.all()
+
+    lookup_field = 'slug'
 
     def get_serializer(self, *args, **kwargs):
 
@@ -73,13 +83,20 @@ class CategoryListCreate(generics.ListCreateAPIView):
         return super().get_serializer(*args, **kwargs)
 
     def get_permissions(self):
-        if self.request.method == 'GET':
-            permission_classes = [permissions.AllowAny]
-
-        else:
+        if self.action == 'create':
             permission_classes = [permissions.IsAdminUser]
 
+        else:
+            permission_classes = [permissions.AllowAny]
+
         return [permission() for permission in permission_classes]
+
+    @action(methods=['GET'], detail=True)
+    def sub_categories(self, request, slug=None):
+        category = self.get_object()
+        serializer = CategorySerializer(category, many=False)
+
+        return Response(serializer.data, status=200)
 
 
 class ProductListByCategory(generics.ListAPIView):
