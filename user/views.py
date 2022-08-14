@@ -133,15 +133,15 @@ class AuthRequestViewSet(viewsets.GenericViewSet):
         else:
             return VerifyAuthSerializer
 
-    @action(methods=['post'], detail=False, url_name='login', url_path='login', permission_classes=[AllowAny])
+    @action(methods=['post'], detail=False, url_name='login',
+            url_path='login', permission_classes=[AllowAny])
     def login(self, request, *args, **kwargs):
         serializer = AuthRequestSerializer(data=request.data)
 
         serializer.is_valid(raise_exception=True)
         mobile = serializer.validated_data['receiver']
 
-        mobile_status = self._get_mobile_status(
-            mobile, request.data.get('login_with_code'))
+        mobile_status = self._get_mobile_status(mobile, request.data.get('login_with_code'))
 
         if mobile_status == AuthRequest.MobileStatuses.NOT_REGISTERED:
             self._create_user(mobile)

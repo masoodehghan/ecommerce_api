@@ -25,7 +25,7 @@ def generate_and_send_code(receiver_email):
     return code
 
 
-def send_password_reset_to_user(user_email,  uid, token, domain='127.0.0.1:8000', use_https=False):
+def send_password_reset_to_user(user_email, uid, token, domain='127.0.0.1:8000', use_https=False):
     protocol = 'https' if use_https else 'http'
     url = reverse('password_reset_confirm', kwargs={'uid': uid, 'token': token})
     message = f'{protocol}://{domain}{url}'
@@ -41,5 +41,5 @@ def send_password_reset_to_user(user_email,  uid, token, domain='127.0.0.1:8000'
 
 
 sensitive_post_parameters_m = method_decorator(
-    sensitive_post_parameters('password', 'password2', 'new_password', 'new_password2')
+    sensitive_post_parameters('password', 'password2', 'new_password', 'new_password2', 'old_password')
 )
